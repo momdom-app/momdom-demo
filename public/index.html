@@ -264,6 +264,8 @@ footer p{font-size:.78rem;color:var(--muted);}
 .filter-bar .btn-cyan{padding:9px 18px;font-size:.82rem;}
 .btn-email-all{background:var(--navy);color:var(--white);border:none;padding:9px 18px;border-radius:50px;font-family:var(--fb);font-size:.82rem;font-weight:500;cursor:pointer;}
 .btn-email-all:hover{background:var(--navy-m);}
+.btn-email-all.ghost{background:transparent;color:var(--navy);border:1.5px solid var(--warm);}
+.btn-email-all.ghost:hover{border-color:var(--cyan);color:var(--cyan-d);}
 
 /* Bulk action bar */
 .bulk-bar{display:none;background:var(--navy);color:var(--white);padding:9px 16px;border-radius:var(--rs);font-size:.78rem;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;}
@@ -623,6 +625,7 @@ tr.row-selected td{background:#f0fafe;}
         </select>
         <button class="btn-cyan" onclick="loadTable(1)">Filter</button>
         <button class="btn-email-all" onclick="emailEveryone()">✉ Email everyone ↗</button>
+        <button class="btn-email-all ghost" onclick="copyAllEmails()">📋 Copy all emails</button>
       </div>
       <div class="bulk-bar" id="bulk-bar">
         <span id="bulk-count">0 selected</span>
@@ -1049,8 +1052,7 @@ async function applyBulkStatus() {
   } catch { alert('Bulk update failed.'); }
 }
 
-/* ── Email everyone ─────────────────────────── */
-async function emailEveryone() {
+async function fetchFilteredEmails() {
   const tier   = document.getElementById('f-tier')?.value   || '';
   const status = document.getElementById('f-status')?.value || '';
   const params = new URLSearchParams({
@@ -1058,15 +1060,31 @@ async function emailEveryone() {
     ...(tier   && { tier }),
     ...(status && { status }),
   });
+  const res = await fetch('/api/emails?' + params);
+  const d = await res.json();
+  return d.emails || [];
+}
+
+/* ── Email everyone ─────────────────────────── */
+async function emailEveryone() {
   try {
-    const res = await fetch('/api/emails?' + params);
-    const d = await res.json();
-    if (!d.emails?.length) { alert('No emails match the current filter.'); return; }
+    const emails = await fetchFilteredEmails();
+    if (!emails.length) { alert('No emails match the current filter.'); return; }
     window.open(
-      'https://mail.google.com/mail/?view=cm&bcc=' + encodeURIComponent(d.emails.join(',')),
+      'https://mail.google.com/mail/?view=cm&bcc=' + encodeURIComponent(emails.join(',')),
       '_blank'
     );
   } catch { alert('Failed to fetch email list.'); }
+}
+
+/* ── Copy all emails ─────────────────────────── */
+async function copyAllEmails() {
+  try {
+    const emails = await fetchFilteredEmails();
+    if (!emails.length) { alert('No emails match the current filter.'); return; }
+    await navigator.clipboard.writeText(emails.join(', '));
+    alert(`Copied ${emails.length} email${emails.length === 1 ? '' : 's'} to clipboard.`);
+  } catch { alert('Failed to copy email list.'); }
 }
 
 /* ── Helpers ─────────────────────────────────────────── */
